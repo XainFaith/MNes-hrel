@@ -1,4 +1,4 @@
-# MNes-hrel
+# MNes-rhel
 
 
 Metal nes, projects Aim is to create a regular Nintendo emulator to run on bare ARM systems specifically those that run an Arm1176.
