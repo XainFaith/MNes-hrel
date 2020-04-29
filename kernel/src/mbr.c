@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "mbr.h"
-#include "malloc.h
+#include "malloc.h"
 
 
 struct PARTITION_TLB_ENTRY * pte_load(void * entryBuffer)

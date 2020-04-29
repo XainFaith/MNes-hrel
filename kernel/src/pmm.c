@@ -24,7 +24,7 @@ int32_t init_pmm()
 	uint32_t avalMem = SYS_MEM ;
 	uint32_t sysMem = ((avalMem) * MB) - kstart; //TODO Figure out a decent way to account for space used by kernel and initramdisk
 	 MemFree = sysMem;
-	 MemUsed = 0;
+	 MemUsed = avalMem - sysMem;
 	 
 	 //The root node is set at the 8MB Address 
 	 rootMemNode = (struct MemChunk * )(kstart);

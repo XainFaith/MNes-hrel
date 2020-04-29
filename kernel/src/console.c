@@ -12,11 +12,17 @@ uint32_t lineWidth;
 
 DISPLAY_FORMAT * dispFormat;
 
+void console_cls()
+{
+	memset(fb, 0, (dispFormat->resHeight * dispFormat->resWidth) * sizeof(uint16_t));
+}
+
 int init_console()
 {
 	dispFormat = getdisplayformat();
 	fb = getframebuffer();
 	 lineWidth = dispFormat->resWidth / 8; 
+	 console_cls();
 	 return 0;
 }
 
@@ -70,9 +76,6 @@ void console_write(char c)
     }
 }
 
-void console_cls()
-{
-	memset(fb, 0, (dispFormat->resHeight * dispFormat->resWidth) * sizeof(uint16_t));
-}
+
 
 

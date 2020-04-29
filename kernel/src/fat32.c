@@ -8,7 +8,6 @@
 
 #include "fat32.h"
 
-
 struct FAT_BPB
 {
     uint16_t bytesPerSector;
@@ -21,12 +20,12 @@ struct FAT_BPB
     uint16_t sectorsPerFat;
     uint16_t numSectorsPerTrack;
     uint32_t numHiddenSectors;
-    uint32_t largeSectCnt;
+	uint32_t largeSectorCount;
 };
 
 struct FAT_EBR
 {
-    uint32_t scetorsPerFat;
+    uint32_t sectorsPerFat;
     uint16_t flags;
     uint16_t versionNum;
     uint32_t clusterRootNum;
@@ -70,6 +69,13 @@ struct FAT_ENTRY_LIST_NODE
     struct FAT_ENTRY_LIST_NODE * next;
 };
 
+struct FAT_FS
+{
+	unsigned char * fattlb;
+	struct BLOCK_DEVICE * dev;
+	struct FAT_BPB * bpb;
+	struct FAT_EBR * ebr;
+};
 
 struct FAT_BPB * fat_loadbpb(void * buffer)
 {
@@ -105,8 +111,8 @@ struct FAT_BPB * fat_loadbpb(void * buffer)
     //Skip media descriptor byte
     readPtr++;
  
-    //Read in the mnumber of sectors per FAT
-    bpb->sectorsPerFat = readPtr[1] << 8 | readPtr[0];
+    //sectors per FAT as its used for fat12/16
+	bpb->sectorsPerFat = readPtr[1] << 8 | readPtr[0];
     readPtr+=2;
  
     //Read in number of sectors per track
@@ -120,8 +126,9 @@ struct FAT_BPB * fat_loadbpb(void * buffer)
     bpb->numHiddenSectors = readPtr[3] << 24 | readPtr[2] << 16 |readPtr[1] << 8 |readPtr[0];
     readPtr+=4;
  
-    //Read in large sector count
-    bpb->largeSectCnt = readPtr[3] << 24 | readPtr[2] << 16 |readPtr[1] << 8 |readPtr[0];
+    //Read in large sector count for the total count of sectors in volume if it exceeds the totSectors capcity to hold
+	bpb->largeSectorCount = readPtr[3] << 24 | readPtr[2] << 16 |readPtr[1] << 8 |readPtr[0];
+	
 	readPtr+=4;
 	
 	return bpb;
@@ -135,7 +142,7 @@ struct FAT_EBR * fat_loadebr(void * buffer)
 	 readPtr +=36; //EBR offset after Bios param  block
  
     //Read in sectors per file allocation table
-    ebr->scetorsPerFat = readPtr[3] << 24 | readPtr[2] << 16 | readPtr[1] << 8 | readPtr[0];
+    ebr->sectorsPerFat = readPtr[3] << 24 | readPtr[2] << 16 | readPtr[1] << 8 | readPtr[0];
     readPtr += 4;
  
     //Read in flags
@@ -184,12 +191,26 @@ struct FAT_EBR * fat_loadebr(void * buffer)
 	return ebr;
 }
 
-void init_fatfs(struct BLOCK_DEVICE * device)
+
+int fat_read_fattlb(uint32_t sectorstofat,  uint32_t lba, unsigned char * tlbbuffer,struct BLOCK_DEVICE * device)
+{
+	uint32_t bytesread = 0;
+	for(int i =0;  i < sectorstofat; i++)
+	{
+		device->read(tlbbuffer,lba);
+		lba++;
+		tlbbuffer += 512;
+		bytesread+= 512;
+	}
+	return bytesread;
+}
+
+struct FAT_FS * init_fatfs(struct BLOCK_DEVICE * device)
 {
 	uint8_t * readbuffer = (uint8_t*)malloc(sizeof(uint8_t) * 512);
-	uint32_t bytesRead = device->read(&readbuffer, 0);
+	uint32_t bytesread = device->read(readbuffer, 0);
 	
-	struct MASTER_BOOT_RECORD * mbr = LoadBootRecord(&readbuffer);
+	struct MASTER_BOOT_RECORD * mbr = LoadBootRecord(readbuffer);
 	struct PARTITION_TLB_ENTRY * tlbentry = NULL;
 	
 	//Only expecting one Fat32 Partition but it may not be the first one listed in the tlb entries
@@ -204,12 +225,17 @@ void init_fatfs(struct BLOCK_DEVICE * device)
 	}
 	
 	uint8_t * fatBuffer = (uint8_t*)malloc(512);
-	memset(fatBuffer, 0 , 512);
-	
-	device->read(&fatBuffer, tlbentry->LBA); 
+	device->read(fatBuffer, tlbentry->LBA); 
 
-	struct FAT_BPB * bpb = fat_loadbpb(&fatBuffer);
-	struct FAT_EBR * ebr = fat_loadebr(&fatBuffer);
-	printf("Sig value: 0x%h \n", ebr->bootSig);
+	struct FAT_BPB * bpb = fat_loadbpb(fatBuffer);
+	struct FAT_EBR * ebr = fat_loadebr(fatBuffer);
+		
+	struct FAT_FS * fatfs = (struct FAT_FS*)malloc(sizeof(struct FAT_FS));
+	fatfs->fattlb = (unsigned char*)malloc(bpb->bytesPerSector * ebr->sectorsPerFat);
+	//Calculate the LBA of the FAT
+	uint32_t fatlba = tlbentry->LBA + bpb->reservedSectors;
+	bytesread = fat_read_fattlb(ebr->sectorsPerFat, fatlba, fatfs->fattlb, device);
+
+	return fatfs;
 }
 

@@ -7,7 +7,7 @@ bin/kernel.bin:
 all : bin/kernel.bin
 	
 run : all
-	qemu-system-arm -M versatilepb -cpu arm1176 -m 128 -kernel bin/kernel.bin -s -S  -sd disk.img
+	qemu-system-arm -M versatilepb -cpu arm1176 -m 128 -kernel bin/kernel.bin -s -S  -sd dsk.img
 	
 clean:
 	rm -r bin
