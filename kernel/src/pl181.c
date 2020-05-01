@@ -164,6 +164,24 @@ int mmci_write_block(void * buffer, uint32_t addr)
     return 0;
 }
 
+
+ int mmci_read_blocks(void * buffer, uint32_t addr, uint32_t numblocks)
+ {
+	 uint8_t * readbuffer = (uint8_t*)buffer;
+	 uint32_t bytesread = 0;
+	 for(int i = 0; i <  numblocks; i++)
+	 {
+		 bytesread += mmci_read_block(readbuffer, addr + i);
+		 readbuffer+= 512; //TODO Get this value from sd card information instead of relying on fixed size blocks even though its standard
+	 }
+	 return bytesread;
+ }
+ 
+int mmci_write_blocks(void * buffer, uint32_t addr, uint32_t numblocks)
+{
+		return 0;
+}
+
 void mmci_clear_resp_registers()
 {
     mmci_registers->response[0] = 0;
@@ -228,7 +246,7 @@ struct BLOCK_DEVICE * get_block_device()
     mmci_send_cmd(16 | EXE | RESP, 512 );
     if(mmci_registers->response[0] == 0x900) //TODO Figure out how to check for a busy signal on the data line for a response of r1b
     {
-        printf("card is selected and in the transfer state \n");
+
     }
     else
     {
@@ -239,6 +257,8 @@ struct BLOCK_DEVICE * get_block_device()
 	card->present = true;
 	card->read = &mmci_read_block;
 	card->write = &mmci_write_block;
+	card->readblocks = &mmci_read_blocks;
+	card->writeblocks = &mmci_write_blocks;
 	
 	return card;
 }

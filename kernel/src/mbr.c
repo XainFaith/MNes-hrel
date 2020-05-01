@@ -38,22 +38,17 @@ struct MASTER_BOOT_RECORD * LoadBootRecord(void * bootRecordData)
     uint8_t * recordData = (uint8_t*)bootRecordData;
     recordData += 0x1BE;
     mbr->tlbEntries[0] = pte_load(recordData);
-	printf("loading entrie 1 ptype: 0x%h \n", mbr->tlbEntries[0]->partitionType);
     recordData += 16;
 
     mbr->tlbEntries[1]= pte_load(recordData);
-	printf("loading entrie 1 ptype: 0x%h \n", mbr->tlbEntries[1]->partitionType);
     recordData += 16;
 
     mbr->tlbEntries[2] = pte_load(recordData);
-	printf("loading entrie 1 ptype: 0x%h \n", mbr->tlbEntries[2]->partitionType);
     recordData += 16;
 	
     mbr->tlbEntries[3]= pte_load(recordData);
-	printf("loading entrie 1 ptype: 0x%h \n", mbr->tlbEntries[3]->partitionType);
     recordData += 16;
  
     uint16_t brCode = *recordData;
-    printf("Boot Record validation code: 0x%h \n", brCode);
 	return mbr;
  }
