@@ -5,7 +5,7 @@ LD := arm-eabi-ld
 SYS_MEM :=  128 
 
 
-CFLAGS := -ffreestanding  -Wall -Wextra  -I  inc -I ~/opt/cross/newlib/arm-eabi/include
+CFLAGS := -ffreestanding  -Wall -Wextra  -I  inc -I ~/opt/cross/newlib/arm-eabi/include/
 
 DEFINES :=  -D SYS_MEM=$(SYS_MEM)
 

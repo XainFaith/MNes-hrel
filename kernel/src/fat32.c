@@ -235,11 +235,11 @@ DIR * fat_opendir(const char * path, fat_fs * fs)
 	char * subdir = strtok(path, "/");
 	
 	uint32_t clusternum = fs->ebr->clusterRootNum;
-	
+
 	uint32_t buffersize = 0;
 	char * buffer = fat_getdata(clusternum, &buffersize,fs);
 	char * readptr = buffer;
-	dirent * dir = NULL;
+	dirent * dir = (dirent*)malloc(sizeof(dirent));
 	
 	nextread: while(readptr < (buffer + buffersize))
 	{
@@ -250,10 +250,18 @@ DIR * fat_opendir(const char * path, fat_fs * fs)
 		{
 			if(strcmp(dir->d_name, subdir) == 0x0) //We found the directory we were looking for
 			{
-				subdir  = strtok(path, "/");
+				subdir  = strtok(NULL, "/");
 				
 				if(subdir == NULL) //End of given path so this must be the directory requested to be opened
 				{
+					readptr += nextoffset - sizeof(fat_dirent);
+					fat_dirent * fdir = (fat_dirent*)readptr;
+					clusternum = (fdir->addrHighbits << 16) | (fdir->addrLowBits);
+					free(buffer);
+					free(dir);
+					
+					buffersize = 0;
+					buffer = fat_getdata(clusternum, &buffersize,fs);
 					fat_dir * odir = (fat_dir*)malloc(sizeof(fat_dir));
 					odir->data = buffer;
 					odir->readptr = buffer;
@@ -269,7 +277,6 @@ DIR * fat_opendir(const char * path, fat_fs * fs)
 				buffersize = 0;
 				buffer = fat_getdata(clusternum, &buffersize,fs);
 				readptr = buffer;
-				dir = NULL;
 				goto nextread;
 			}
 		}
@@ -290,6 +297,7 @@ DIR * fat_opendir(const char * path, fat_fs * fs)
 		free(buffer);
 	}
 	
+	free(dir);
 	return NULL;
 }
 

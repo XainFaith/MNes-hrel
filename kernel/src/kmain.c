@@ -34,7 +34,7 @@ void kmain()
 		}
 	}
 	
-	DIR * dir = opendir("/");
+	DIR * dir = opendir("/testdir/");
 	
 	dirent * entry = readdir(dir);
 	while(entry != NULL)
@@ -43,21 +43,6 @@ void kmain()
 		entry = readdir(dir);
 	}
 	
-	rewinddir(dir);
-	entry = readdir(dir);
-	while(entry != NULL)
-	{
-		printf("Entry: %s \n", entry->d_name);
-		entry = readdir(dir);
-	}
-	
 	closedir(dir);
-	
-	entry = readdir(dir);
-	while(entry != NULL)
-	{
-		printf("Entry: %s \n", entry->d_name);
-		entry = readdir(dir);
-	}
 
 }

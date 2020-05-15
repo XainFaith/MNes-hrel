@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <unistd.h>
-#include <errno.h>
+#include <sys/errno.h>
 
 
 size_t _write(int fd, const char * buffer, size_t cnt)

@@ -118,17 +118,22 @@ DIR *  opendir(char * path)
 				
 				return NULL;
 			}
-			else if(strncmp( path,itr->mountpath, strlen(itr->mountpath))) //requesting a sub directory of the mount point
+			else 
 			{
-				char * subpath = path + strlen(itr->mountpath) ;
-				DIR * dir = itr->vfs_driver->fsopendir(subpath,  itr->vfs_driver->native_fs);
-				if(dir != NULL)
+				int mountpathlen = strlen(itr->mountpath);
+				int cmpval = strncmp( path,itr->mountpath, mountpathlen);
+				if(cmpval == 0x0) //requesting a sub directory of the mount point
 				{
-					vfs_open_dirs[opendirindex].dir = dir;
-					vfs_open_dirs[opendirindex].driver = itr->vfs_driver;
-					return dir;
+					char * subpath = path + strlen(itr->mountpath) ;
+					DIR * dir = itr->vfs_driver->fsopendir(subpath,  itr->vfs_driver->native_fs);
+					if(dir != NULL)
+					{
+						vfs_open_dirs[opendirindex].dir = dir;
+						vfs_open_dirs[opendirindex].driver = itr->vfs_driver;
+						return dir;
+					}
+					return NULL;
 				}
-				return NULL;
 			}
 		}
 			
