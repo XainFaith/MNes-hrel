@@ -10,15 +10,15 @@
 #define LRESP (RESP & ( 1 << 7 ))
 #define HCS (1 << 30)
 
-struct SD_CARD
+typedef struct
 {
 	uint32_t rca;
 	bool ishc;
-};
+}sd_card;
 
-struct SD_CARD * mmci_sd_card;
+sd_card * mmci_sd_card;
 
-struct PL181_REGISTERS
+typedef struct
 {
 	uint32_t power;
 	uint32_t clock;
@@ -35,21 +35,21 @@ struct PL181_REGISTERS
 	uint32_t intMask[2];
 	uint32_t intSelect;
 	uint32_t fifoCnt;
-};
+}pl181_registers;
 
-struct PL181_FIFO
+typedef struct
 {
 	uint32_t data[15];
-};
+}pl181_fifo;
 
-struct PL181_REGISTERS * mmci_registers;
-struct PL181_FIFO * mmci_dataFIFO;
+volatile pl181_registers * mmci_registers;
+volatile pl181_fifo * mmci_dataFIFO;
 
 
 int init_pl181(uint32_t baseaddr)
 {
-	mmci_registers = (volatile struct PL181_REGISTERS*)baseaddr;
-    mmci_dataFIFO = (volatile struct PL181_FIFO*)(baseaddr + 0x080);
+	mmci_registers = (pl181_registers*)baseaddr;
+    mmci_dataFIFO = (pl181_fifo*)(baseaddr + 0x080);
    
 	//TODO Figure out how to properly initalize the pl181 on real hardware since qemu does a half job emulating it
 
@@ -195,7 +195,7 @@ void mmci_clear_flags()
     mmci_registers->clear = 0x5FF;
 }
 
-struct BLOCK_DEVICE * get_block_device()
+block_device * get_block_device()
 {
 
     //Send cmd 0 to set all cards into idle state
@@ -234,7 +234,7 @@ struct BLOCK_DEVICE * get_block_device()
     //Get the card RCA from the response it is the top 16 bits of the 32 bit response
     uint32_t rca = (mmci_registers->response[0] & 0xFFFF0000 );
  
-	mmci_sd_card = (struct SD_CARD*)malloc(sizeof(struct SD_CARD));
+	mmci_sd_card = (sd_card*)malloc(sizeof(sd_card));
  
     mmci_sd_card->ishc = isHC;
     mmci_sd_card->rca = rca;
@@ -253,7 +253,7 @@ struct BLOCK_DEVICE * get_block_device()
         printf("failed to select card!: \n");
     }
 	
-	struct BLOCK_DEVICE * card = (struct BLOCK_DEVICE *)malloc(sizeof(struct BLOCK_DEVICE));
+	block_device * card = (block_device *)malloc(sizeof(block_device));
 	card->present = true;
 	card->read = &mmci_read_block;
 	card->write = &mmci_write_block;

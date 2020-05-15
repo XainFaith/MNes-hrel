@@ -2,51 +2,12 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-
-#include "malloc.h"
-#include "block_device.h"
-#include "mbr.h"
-#include "vfs.h"
-
 #include "fat32.h"
+#include "dirent.h"
 
-struct FAT_BPB
+fat_bpb* fat_loadbpb(void * buffer)
 {
-    uint16_t bytesPerSector;
-    uint8_t sectorsPerCluster;
-    uint16_t reservedSectors; //Boot record sectors are included in the reserved sectors
-    uint8_t fatCnt;
-    uint16_t numDirent;   //Number of directory entries (must be set so that the root directory occupies entire sectors).
-    uint16_t totSectors; //The total sectors in the logical volume. If this value is 0, it means there are more than 65535 sectors in the volume,
-                         // and the actual count is stored in the Large Sector Count entry at 0x20
-    uint16_t sectorsPerFat;
-    uint16_t numSectorsPerTrack;
-    uint32_t numHiddenSectors;
-	uint32_t largeSectorCount;
-};
-
-struct FAT_EBR
-{
-    uint32_t sectorsPerFat;
-    uint16_t flags;
-    uint16_t versionNum;
-    uint32_t clusterRootNum;
-    uint16_t sectNumFSInfo;
-    uint16_t secNumBKBS;
-    uint8_t sig;
-    char label[11];
-    uint16_t bootSig;
-};
- 
-struct FAT_ENTRY_LIST_NODE
-{
-    struct FAT_DIRENT * dirent;
-    struct FAT_ENTRY_LIST_NODE * next;
-};
-
-struct FAT_BPB * fat_loadbpb(void * buffer)
-{
-	struct FAT_BPB * bpb = malloc(sizeof(struct FAT_BPB));
+	fat_bpb * bpb = (fat_bpb*)malloc(sizeof(fat_bpb));
 	uint8_t * readPtr = (uint8_t*)buffer;
     //Jump to relative data
     readPtr+=11;
@@ -101,9 +62,9 @@ struct FAT_BPB * fat_loadbpb(void * buffer)
 	return bpb;
 }
 
-struct FAT_EBR * fat_loadebr(void * buffer)
+fat_ebr * fat_loadebr(void * buffer)
 {
-	struct FAT_EBR * ebr = (struct FAT_EBR*)malloc(sizeof(struct FAT_EBR));
+	fat_ebr * ebr = (fat_ebr*)malloc(sizeof(fat_ebr));
 	 
 	 uint8_t * readPtr = (uint8_t*)buffer;
 	 readPtr +=36; //EBR offset after Bios param  block
@@ -158,259 +119,30 @@ struct FAT_EBR * fat_loadebr(void * buffer)
 	return ebr;
 }
 
-typedef struct
-{
-	unsigned char * fattlb;
-	struct BLOCK_DEVICE * dev;
-	struct FAT_BPB * bpb;
-	struct FAT_EBR * ebr;
-	uint32_t firstdatalba;
-}fat_fs;
-
-typedef struct 
-{
-    char name[11];
-    uint8_t attrflag;
-    uint8_t reserved;
-    uint8_t ctTenths;
-    uint16_t ct;
-    uint16_t dt;
-    uint16_t lastAccessed;
-    uint16_t addrHighbits;
-    uint16_t lastModTime;
-    uint16_t lastModDate;
-    uint16_t addrLowBits;
-    uint32_t sizeInBytes;
-}fat_dirent;
-
-typedef struct
-{
-	fat_dirent * dirent;
-	char * name;
-} fat_dirent_node;
-
-typedef struct
-{
-    uint8_t sequence;
-    char name[10];
-    uint8_t attrflag;
-	uint8_t type;
-	uint8_t checksum;
-    char name2[12];
-    uint16_t reserved;
-    char name3[4];
-} fat_lent;
-
-int fat_read_fattlb(uint32_t sectorstofat,  uint32_t lba, unsigned char * tlbbuffer,struct BLOCK_DEVICE * device)
-{
-	uint32_t bytesread = 0;
-	for(int i =0;  i < sectorstofat; i++)
-	{
-		device->read(tlbbuffer,lba);
-		lba++;
-		tlbbuffer += 512;
-		bytesread+= 512;
-	}
-	return bytesread;
-}
-
 uint32_t fat_clustertolba(fat_fs * fs, uint32_t clusternum)
 {
 	return fs->firstdatalba + (fs->bpb->sectorsPerCluster * (clusternum -2));
 }
 
-char * fat_getdirentname(fat_dirent * dirent)
-{
-	char * name = (char*)malloc(11);
-	
-	uint8_t lastindex = 0;
-	for(int i =0; i < 11; i++)
-	{
-		if(dirent->name[i] != 0)
-		{
-			name[lastindex] = dirent->name[i];
-			lastindex++;
-		}
-	}
-	
-	return name;
-}
-
-char * fat_getlongname(fat_lent * lent, uint32_t entcount)
-{
-	char * name = (char*)malloc(entcount * 26);
-	bool process = true;
-	uint32_t charcount = 0;
-	while(process)
-	{
-		for(int i = 0; i < 10; i++)
-		{
-			if(lent->name[i] != 0xFF && lent->name[i] != 0x0)
-			{
-				name[charcount] = lent->name[i];
-				charcount++;
-			}
-		}
-		
-		for(int i =0; i <12; i ++)
-		{
-			if(lent->name2[i] != 0xFF && lent->name2[i] != 0x0)
-			{
-				name[charcount] = lent->name2[i];
-				charcount++;
-			}
-		}
-		
-		for(int i =0; i <4; i ++)
-		{
-			if(lent->name3[i] != 0xFF && lent->name3[i] != 0x0)
-			{
-				name[charcount] = lent->name3[i];
-				charcount++;
-			}
-		}
-		
-		if(lent->sequence & 0x40)
-		{
-			process = false;
-			charcount++;
-			name[charcount] = '/0';
-		}
-		else
-		{
-			lent -= sizeof(fat_lent);
-		}
-	}
-	
-	return name;
-}
-
-uint32_t fat_getdircluster(char * dirname, fat_fs * fs, uint32_t clusternum)
-{
-	unsigned char * clusterdata = (unsigned char *)malloc(fs->bpb->sectorsPerCluster * fs->bpb->bytesPerSector);
-	uint32_t clusterlba = fat_clustertolba(fs, clusternum);
-
-	fs->dev->readblocks(clusterdata,clusterlba, fs->bpb->sectorsPerCluster);
-	
-	fat_dirent * dirent = (fat_dirent*)(uint32_t)clusterdata;
-	fat_lent * longent = NULL;
-	uint32_t longentcount = 0;
-	uint32_t readindex = 0;
-	
-	while(dirent != NULL)
-	{
-		dirent = (fat_dirent*)(((uint32_t)clusterdata) + readindex);
-		//If the first byte of the cluster is 0x0 then the cluster is empty
-		if(dirent->name[0] == 0x0)
-		{
-			return 0x0; //TODO set an error flag or something
-		}
-	
-		if(dirent->attrflag != 0xe5)
-		{
-			    //Does this entry contain a director entry
-				if(dirent->attrflag == 0x10)
-				{
-					
-					char * direntname = NULL;
-					
-					//If longent is not null there are long file name entries to the directory
-					if(longent != NULL)
-					{
-						direntname = fat_getlongname(longent, longentcount);
-					}
-					else
-					{
-						direntname = fat_getdirentname(dirent);
-					}
-
-					//Is this the directory we are looking for
-					if(strcmp(direntname,dirname) == 0)
-					{
-							uint32_t dircluster = (dirent->addrHighbits << 16)  | (dirent->addrLowBits);
-							free(clusterdata);
-							free(direntname);
-							return dircluster;
-					}
-
-					free(direntname);
-				}
-				else if(dirent->attrflag == 0x0f) //Is the entry a long file name entry
-				{
-						longent = (fat_lent*)dirent;
-						if(longent->sequence & 0x40)
-						{
-							longentcount = longent->sequence - 0x40;
-						}
-						else
-						{
-							longent = NULL;
-						}
-				}
-		}
-		
-		readindex+=sizeof(fat_dirent);
-		
-		if(readindex >= fs->bpb->bytesPerSector * fs->bpb->sectorsPerCluster)
-		{
-				return 0x0; //dir not found so return culster number 0 which is not a valid cluster
-		}
-	}
-}
-
-vfs_dirent fat_opendir(char * path, fat_fs * fs)
-{
-	
-	if(path == NULL)
-	{
-		return NULL;
-	}
-	
-	//Get Root Direction
-	unsigned char * clusterdata = (unsigned char *)malloc(fs->bpb->sectorsPerCluster * fs->bpb->bytesPerSector);
-	uint32_t clusterlba = fat_clustertolba(fs,fs->ebr->clusterRootNum);
-	fs->dev->readblocks(clusterdata,clusterlba, fs->bpb->sectorsPerCluster);
-
-	//Are we trying to open the root directory if we are then we can just return the root cluster number
-	if(strcmp(path, "/") == 0x0)
-	{
-		return fs->ebr->clusterRootNum;
-	}
-	
-	char * dir = splitpath(path, '/');
-	
-	uint32_t clusternum = fs->ebr->clusterRootNum;
-	while(dir != NULL)
-	{
-		clusternum = fat_getdircluster(dir, fs, clusternum);
-		
-		//If we are still in the loop and clusternum is 0x0 then the dir was not found
-		if(clusternum == 0x0)
-		{
-			return NULL;
-		}
-		
-		free(dir);
-		dir = splitpath(NULL, '/');
-	}
-	
-	return clusternum;
-	
-}
-
-fs_driver * init_fatfs(struct BLOCK_DEVICE * device)
+fs_driver * init_fatfs(block_device * device)
 {
 	uint8_t * readbuffer = (uint8_t*)malloc(sizeof(uint8_t) * 512);
 	uint32_t bytesread = device->read(readbuffer, 0);
 	
-	struct MASTER_BOOT_RECORD * mbr = LoadBootRecord(readbuffer);
-	struct PARTITION_TLB_ENTRY * tlbentry = NULL;
+	if(bytesread != 512)
+	{
+		free(readbuffer);
+		return NULL;
+	}
+	
+	master_boot_record  * mbr = LoadBootRecord(readbuffer);
+	mbr_partion_tlb_entry * tlbentry = NULL;
 	
 	//Only expecting one Fat32 Partition but it may not be the first one listed in the tlb entries
 	for(int i =0; i < 4; i++)
 	{
 		//Check for Fat32 file systems
-		if(mbr->tlbEntries[i]->partitionType == 0xB | mbr->tlbEntries[i]->partitionType == 0xC)
+		if(mbr->tlbEntries[i] ->partitionType == 0xB || mbr->tlbEntries[i]->partitionType == 0xC)
 		{
 				tlbentry = mbr->tlbEntries[i];
 				break;
@@ -420,26 +152,308 @@ fs_driver * init_fatfs(struct BLOCK_DEVICE * device)
 	uint8_t * fatBuffer = (uint8_t*)malloc(512);
 	device->read(fatBuffer, tlbentry->LBA); 
 
-	struct FAT_BPB * bpb = fat_loadbpb(fatBuffer);
-	struct FAT_EBR * ebr = fat_loadebr(fatBuffer);
+	fat_bpb* bpb = fat_loadbpb(fatBuffer);
+	fat_ebr * ebr = fat_loadebr(fatBuffer);
 		
 	fat_fs * fatfs = (fat_fs*)malloc(sizeof(fat_fs));
-	fatfs->fattlb = (unsigned char*)malloc(bpb->bytesPerSector * ebr->sectorsPerFat);
+	fatfs->fattlb = (uint32_t*)malloc(bpb->bytesPerSector * ebr->sectorsPerFat);
 	//Calculate the LBA of the FAT
 	uint32_t fatlba = tlbentry->LBA + bpb->reservedSectors;
-	bytesread = fat_read_fattlb(ebr->sectorsPerFat, fatlba, fatfs->fattlb, device);
+	bytesread = device->readblocks((unsigned char*)fatfs->fattlb, fatlba,ebr->sectorsPerFat);
 	
 	fatfs->bpb = bpb;	
 	fatfs->ebr = ebr;
 	fatfs->firstdatalba = fatlba + (ebr->sectorsPerFat * bpb->fatCnt);
 	fatfs->dev = device;
+	fatfs->clustersize = bpb->bytesPerSector * bpb->sectorsPerCluster;
 	
 	fs_driver * fat_driver = (fs_driver*)malloc(sizeof(fs_driver));
-	
-	fat_driver->native_driver = fatfs;
+	fat_driver->native_fs = fatfs;
 	fat_driver->fsopendir = &fat_opendir;
+	fat_driver->fsreaddir = &fat_readdir;
+	fat_driver->fsopenfile = &fat_fopen;
+	fat_driver->fsreadfile = &fat_fread;
+	fat_driver->fsclosedir = &fat_closedir;
+	fat_driver->fsrewinddir = &fat_rewinddir;
 		
 	return fat_driver;
 }
 
+dirent * fat_readdir(fat_dir * dir)
+{
+	static dirent rdir;
+	
+	uint32_t readaddr = (uint32_t)dir->readptr;
+	uint32_t endofdata = ((uint32_t)dir->data) + dir->size;
+	
+	if(readaddr < endofdata)
+	{
+		int next =  fat_getdirent(dir->readptr, &rdir);
+		if(next == -1)
+		{
+			dir->readptr += sizeof(fat_dirent);
+			return NULL;
+		}
+		else
+		{
+			dir->readptr += next;
+		}
+		
+		return &rdir;
+	}	
+	
+	return NULL;
+}
 
+void fat_rewinddir(fat_dir * dir)
+{
+	dir->readptr = dir->data;
+}
+
+/*
+ * 	Opens a directory for reading
+ */ 
+DIR * fat_opendir(const char * path, fat_fs * fs)
+{
+	if(path == NULL)
+	{
+		return NULL;
+	}
+
+	//Edge case for reading root directory
+	if(strcmp(path, "/") == 0x0)
+	{
+		uint32_t buffersize = 0;
+		char * buffer = fat_getdata(fs->ebr->clusterRootNum, &buffersize,fs);
+		fat_dir * odir = (fat_dir*)malloc(sizeof(fat_dir));
+		odir->data = buffer;
+		odir->readptr = buffer;
+		odir->size = buffersize;
+		return odir;
+	}
+	
+	char * subdir = strtok(path, "/");
+	
+	uint32_t clusternum = fs->ebr->clusterRootNum;
+	
+	uint32_t buffersize = 0;
+	char * buffer = fat_getdata(clusternum, &buffersize,fs);
+	char * readptr = buffer;
+	dirent * dir = NULL;
+	
+	nextread: while(readptr < (buffer + buffersize))
+	{
+		
+		int nextoffset = fat_getdirent(readptr, dir);
+			
+		if(dir != NULL)
+		{
+			if(strcmp(dir->d_name, subdir) == 0x0) //We found the directory we were looking for
+			{
+				subdir  = strtok(path, "/");
+				
+				if(subdir == NULL) //End of given path so this must be the directory requested to be opened
+				{
+					fat_dir * odir = (fat_dir*)malloc(sizeof(fat_dir));
+					odir->data = buffer;
+					odir->readptr = buffer;
+					odir->size = buffersize;
+					return odir;
+				}
+				
+				//look in the next directory
+				fat_dirent * fdir = (fat_dirent*)readptr;
+				clusternum =  ((fdir->addrHighbits) >> 16) |  fdir->addrLowBits;
+				
+				free(buffer);
+				buffersize = 0;
+				buffer = fat_getdata(clusternum, &buffersize,fs);
+				readptr = buffer;
+				dir = NULL;
+				goto nextread;
+			}
+		}
+		//Check next offset value and increment read pointer
+		if(nextoffset == -1)
+		{
+			readptr += sizeof(fat_dirent);
+		}
+		else
+		{
+			readptr += nextoffset;
+		}
+	}
+
+	//Directory not found
+	if(buffer != NULL)
+	{
+		free(buffer);
+	}
+	
+	return NULL;
+}
+
+int fat_closedir(fat_dir * dir, fat_fs * fs)
+{
+	if(dir->data != NULL)
+	{
+		free(dir->data);
+		dir->data = NULL;
+	}
+	dir->readptr = NULL;
+	dir->size = 0;
+	return 0;
+}
+
+vfs_open_file * fat_fopen(char * path, fat_fs * fs)
+{
+	return NULL;	
+}
+
+size_t fat_fread(unsigned char *ptr, size_t size, vfs_open_file * file, fat_fs * fs)
+{
+	return -1;	
+}
+
+/*
+ * 	returns the number of clusters in a chain given the first cluster number in the chain
+ */ 
+int fat_getclustercount(uint32_t clusterroot, fat_fs * fs)
+{
+	int count = 1;
+	uint32_t clusternum = clusterroot;
+	while(1)
+	{
+		
+		if((fs->fattlb[clusternum]   & 0x0FFFFFFF)  >= 0x0FFFFFF8) //End of chain
+		{
+			return count;
+		}
+		else
+		{
+			count++;
+			clusternum = fs->fattlb[clusternum] & 0x0FFFFFFF;
+		}
+	}
+	
+	return count;
+}
+
+/*
+ *  returns a buffer to the data for the given cluster chain
+ * starting from the cluster root 
+ */ 
+char * fat_getdata(uint32_t clusterroot, uint32_t * sizeout, fat_fs * fs)
+{
+	uint32_t clustercount = fat_getclustercount(clusterroot, fs);
+	uint32_t clusternum = clusterroot;
+	uint32_t readcount = 0;
+	//Allocate the space required for the data to be read
+	char * data = (char*)malloc(fs->clustersize * clustercount);
+	char * bufptr = data;
+	
+	while(1)
+	{
+		uint32_t lba  = fat_clustertolba(fs, clusternum);
+		readcount += fs->dev->readblocks(bufptr,lba, fs->bpb->sectorsPerCluster);
+		clustercount--;
+		if(clustercount != 0)
+		{
+			clusternum = fs->fattlb[clusternum] & 0x0FFFFFFF;
+			bufptr += fs->clustersize;
+		}
+		else
+		{
+			break;
+		}
+	}
+	*sizeout = readcount;
+	return data;
+}
+
+/*
+*	used to get the next dirent entry from the buffer
+* returns the offset to the next entry in the buffer 
+* if -1 is returned no entry was found at the current buffer head
+* and it should be incremented by size of fat_dirent
+*/
+int fat_getdirent(char * buffer,  dirent * out)
+{
+	fat_dirent * fdir = (fat_dirent*)buffer;
+	int nextoffset = sizeof(fat_dirent);
+	char * nameptr = out->d_name;
+	int lentcount = 0;
+	//If this is a long name file entry advance past it for now
+	if(fdir->attrflag == FAT_LONG_NAME_ENT)
+	{
+		lentcount++;
+		nextoffset += sizeof(fat_lent);
+		fdir++;
+	}
+	
+	//Is this a Directory Entry or an Archive Entry
+	if(fdir->attrflag == FAT_DIR_ENT || fdir->attrflag == FAT_ARCHIVE_ENT)
+	{
+		//if there was not long file name entries present for this entry just copy the bits for the name
+		if(nextoffset == sizeof(fat_dirent))
+		{
+			memcpy(out->d_name, fdir->name,11);
+			out->d_name[12] = '\0';
+		}
+		else
+		{
+			//There are long name file entrys to accompany this entry
+			fat_lent  * lent = (fat_lent*)fdir;
+			lent--;
+			for(int i = lentcount; i > 0; i--)
+			{
+				for(int i =0; i < lentcount; i++)
+				{
+					for(int j = 0; j < 10; j++)
+					{
+						if(lent->name[j] != 0x0 && lent->name[j] != 0xFF)
+						{
+							*nameptr = lent->name[j];
+							nameptr++;
+						}
+					}
+					
+					for(int y = 0; y < 12; y++)
+					{
+						if(lent->name2[y] != 0x0 && lent->name2[y] != 0xFF)
+						{
+							*nameptr = lent->name2[y];
+							nameptr++;
+						}
+					}
+					
+					for(int x = 0; x < 4; x++)
+					{
+						if(lent->name3[x] != 0x0 && lent->name3[x] != 0xFF)
+						{
+							*nameptr = lent->name3[x];
+							nameptr++;
+						}
+					}
+
+					lent--;
+				}
+			}
+
+			*nameptr = '\0';
+		}
+		
+		if(fdir->attrflag == FAT_DIR_ENT)
+		{
+			out->d_type = DT_DIR;
+		}
+		else
+		{
+			out->d_type = DT_REG;
+		}
+		
+		return nextoffset;
+	}
+	out = NULL;
+	return -1;
+}

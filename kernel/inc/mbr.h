@@ -3,7 +3,7 @@
 
 #include <stdint-gcc.h>
 
-struct MBR_HEADER
+typedef struct
 {
     uint8_t ins[3];
     uint8_t oem_ident[8];
@@ -19,22 +19,22 @@ struct MBR_HEADER
     uint16_t head_cnt;
     uint32_t hidden_sector_cnt;
     uint32_t lrg_sector_cnt;
-};
+}mbr_header;
 
-struct PARTITION_TLB_ENTRY
+typedef struct 
 {
     uint32_t paritionAddr;
     uint32_t lastPartAddr;
     uint32_t LBA;
     uint32_t sectorCnt;
     uint8_t partitionType;
-};
+}mbr_partion_tlb_entry;
 
-struct MASTER_BOOT_RECORD
+typedef struct 
 {
-	struct PARTITION_TLB_ENTRY * tlbEntries[4];
-};
+	mbr_partion_tlb_entry * tlbEntries[4];
+}master_boot_record;
 
-struct MASTER_BOOT_RECORD * LoadBootRecord(void * bootRecordData);
+master_boot_record * LoadBootRecord(void * bootRecordData);
 
 #endif 

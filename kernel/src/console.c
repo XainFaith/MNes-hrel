@@ -1,6 +1,5 @@
 #include <stdbool.h>
-#include <stdint-gcc.h>
-#include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include "pl110.h"
 #include "console.h"

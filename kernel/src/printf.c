@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <string.h>
-#include <errno.h>
+
 
 char getHexValue(uint32_t val)
 {

@@ -3,9 +3,9 @@
 #include "malloc.h"
 
 
-struct PARTITION_TLB_ENTRY * pte_load(void * entryBuffer)
+mbr_partion_tlb_entry * pte_load(void * entryBuffer)
 {
-   struct PARTITION_TLB_ENTRY * pte = malloc(sizeof(struct PARTITION_TLB_ENTRY));
+    mbr_partion_tlb_entry * pte = (mbr_partion_tlb_entry*)malloc(sizeof(mbr_partion_tlb_entry));
     uint8_t * readPtr = (uint8_t*)entryBuffer;
     //Skip attrb value
     readPtr++;
@@ -31,9 +31,9 @@ struct PARTITION_TLB_ENTRY * pte_load(void * entryBuffer)
     return pte;
 }
 
-struct MASTER_BOOT_RECORD * LoadBootRecord(void * bootRecordData)
+master_boot_record  * LoadBootRecord(void * bootRecordData)
  {
-	 struct MASTER_BOOT_RECORD * mbr = (struct MASTER_BOOT_RECORD *)malloc(sizeof(struct MASTER_BOOT_RECORD));
+	 master_boot_record  * mbr = (master_boot_record  *)malloc(sizeof(master_boot_record ));
     //Load in the Parition Tlb Entries Data
     uint8_t * recordData = (uint8_t*)bootRecordData;
     recordData += 0x1BE;

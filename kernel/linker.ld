@@ -8,6 +8,8 @@ SECTIONS
 	.text   : {*(.text)}
 	.rodata : {*(.rodata)}
 	.data   : {*(.data)}
+	.preinit_array : {*(.preinit_array)}
+	.init_array : {*(.init_array)}
 	
 	__bss_start = .;
 	

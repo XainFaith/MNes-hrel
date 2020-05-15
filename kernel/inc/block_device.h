@@ -4,22 +4,22 @@
 #include <stdint-gcc.h>
 #include <stdbool.h>
 
-typedef int (*BLOCK_READ)(void * buffer, uint32_t addr);
-typedef int (*BLOCK_WRITE)(void * buffer, uint32_t addr);
+typedef int (*block_read)(void * buffer, uint32_t addr);
+typedef int (*block_write)(void * buffer, uint32_t addr);
 
-typedef int (*MULTI_BLOCK_READ)(void * buffer, uint32_t addr, uint32_t numblocks);
-typedef int (*MULTI_BLOCK_WRITE)(void * buffer, uint32_t addr, uint32_t numblocks);
+typedef int (*multi_block_read)(void * buffer, uint32_t addr, uint32_t numblocks);
+typedef int (*multi_block_write)(void * buffer, uint32_t addr, uint32_t numblocks);
 
-typedef uint32_t (*GET_BLOCK_COUNT)();
+typedef uint32_t (*get_block_count)();
 
-struct BLOCK_DEVICE
+typedef struct
 {
 	bool present;
-	BLOCK_READ read;
-	BLOCK_WRITE write;
-	MULTI_BLOCK_READ readblocks;
-	MULTI_BLOCK_WRITE writeblocks;
-	GET_BLOCK_COUNT getblockcount;
-};
+	block_read read;
+	block_write write;
+	multi_block_read readblocks;
+	multi_block_write writeblocks;
+	get_block_count getblockcount;
+}block_device;
 
 #endif

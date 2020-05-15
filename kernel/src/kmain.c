@@ -1,5 +1,6 @@
 #include <stdint-gcc.h>
 #include <stdio.h>
+#include <dirent.h>
 #include "pmm.h"
 #include "pl110.h"
 #include "pl181.h"
@@ -25,7 +26,7 @@ void kmain()
 	fs_driver * fat_driver =  init_fatfs(sd);
 	if(fat_driver != NULL)
 	{
-		int mval = vfs_mount(fat_driver);
+		int mval = vfs_mount(NULL,fat_driver);
 		if(mval != 0)
 		{
 			printf("Failed to mount FS! \n");
@@ -33,6 +34,30 @@ void kmain()
 		}
 	}
 	
-	uint32_t dirid = opendir("testdir/");
-	printf("dirid: 0x%h \n", dirid);
+	DIR * dir = opendir("/");
+	
+	dirent * entry = readdir(dir);
+	while(entry != NULL)
+	{
+		printf("Entry: %s \n", entry->d_name);
+		entry = readdir(dir);
+	}
+	
+	rewinddir(dir);
+	entry = readdir(dir);
+	while(entry != NULL)
+	{
+		printf("Entry: %s \n", entry->d_name);
+		entry = readdir(dir);
+	}
+	
+	closedir(dir);
+	
+	entry = readdir(dir);
+	while(entry != NULL)
+	{
+		printf("Entry: %s \n", entry->d_name);
+		entry = readdir(dir);
+	}
+
 }

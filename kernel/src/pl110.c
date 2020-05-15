@@ -1,5 +1,7 @@
+#include <string.h>
+#include <stdio.h>
 #include "pl110.h"
-#include "liballoc.h"
+
 
 
 struct Registers //This is a vartion of the PL110 registers as the VersatilePB has mask irq register and the control register swapped

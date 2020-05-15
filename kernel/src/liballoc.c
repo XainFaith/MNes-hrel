@@ -277,7 +277,7 @@ static struct boundary_tag* allocate_new_tag( unsigned int size )
 
 
 
-void *malloc(size_t size)
+void * malloc(size_t size)
 {
 	int index;
 	void *ptr;
