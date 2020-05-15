@@ -1,0 +1,7 @@
+kernel/obj
+dsk/
+bin/
+disk.img/
+kernel/compile_flags.txt
+kernel/MNHrel-hrel.workspace
+todo.txt
