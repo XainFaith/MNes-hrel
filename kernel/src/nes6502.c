@@ -1370,14 +1370,14 @@ void nes_dissasemble_display()
     int x = 256 + 32;
     int y = 64;
     
+    char * disstr = (char*)malloc(256);
+    
     for(int i =0; i < 10; i++)
     {
         uint8_t opcode = nes_cpu_read(addr, true);
         addr++;
         
-        char * disstr = (char*)malloc(256);
-        *disstr = '$';
-        disstr++;
+        memset(disstr, 0x0,256);
         
         char *opname = nes_instructions[opcode].name;
         strcpy(disstr, opname);
@@ -1385,66 +1385,92 @@ void nes_dissasemble_display()
 
         if(nes_instructions[opcode].addr_mode == &nes_IMP)
         {
-            strcpy(disstr, "{IMP}");
-            console_writestr( x, y, disstr);
-            free(disstr);
+            sprintf(disstr, "$%s %s", nes_instructions[opcode].name, "{IMP}");
         }
         else if(nes_instructions[opcode].addr_mode == &nes_IMM)
         {
             uint8_t value = nes_cpu_read(addr, true);
-            strcpy(disstr, "{IMM} ");
-            disstr+=6;
-            
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, value , "{IMM}");
+            addr++;
         }
         else if(nes_instructions[opcode].addr_mode == &nes_ZP0)
         {
-            
+            uint8_t value = nes_cpu_read(addr, true);
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, value , "{ZP0}");
+            addr++;
         }
         else if(nes_instructions[opcode].addr_mode == &nes_ZPX)
         {
-            
+            uint8_t value = nes_cpu_read(addr, true);
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, value , "{ZPX}");
+            addr++;
         }
         else if(nes_instructions[opcode].addr_mode == &nes_ZPY)
         {
-            
+            uint8_t value = nes_cpu_read(addr, true);
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, value , "{ZPY}");
+            addr++;
         }
         else if(nes_instructions[opcode].addr_mode == &nes_REL)
         {
-            
+            uint8_t value = nes_cpu_read(addr, true);
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, value , "{REL}");
+            addr++;
         }
         else if(nes_instructions[opcode].addr_mode == &nes_ABS)
         {
-            
+            uint8_t valuelo = nes_cpu_read(addr, true);
+            addr++;
+            uint8_t valuehi = nes_cpu_read(addr, true);
+            addr++;
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, (valuehi << 8 | valuelo) , "{REL}");
         }
         else if(nes_instructions[opcode].addr_mode == &nes_ABX)
         {
-            
+            uint8_t valuelo = nes_cpu_read(addr, true);
+            addr++;
+            uint8_t valuehi = nes_cpu_read(addr, true);
+            addr++;
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, (valuehi << 8 | valuelo) , "X {ABX}");
         }
         else if(nes_instructions[opcode].addr_mode == &nes_ABY)
         {
-            
+            uint8_t valuelo = nes_cpu_read(addr, true);
+            addr++;
+            uint8_t valuehi = nes_cpu_read(addr, true);
+            addr++;
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, (valuehi << 8 | valuelo) , "Y {ABY}"); 
         }
         else if(nes_instructions[opcode].addr_mode == &nes_IND)
         {
-            
+            uint8_t valuelo = nes_cpu_read(addr, true);
+            addr++;
+            uint8_t valuehi = nes_cpu_read(addr, true);
+            addr++;
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, (valuehi << 8 | valuelo) , "{IND}"); 
         }
-        else if(nes_instructions[opcode].addr_mode == &nes_INX)
+        else if(nes_instructions[opcode].addr_mode == &nes_IZX)
         {
-            
+            uint8_t value = nes_cpu_read(addr, true);
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, value , "X {IZX}");
+            addr++;
         }
-        else if(nes_instructions[opcode].addr_mode == &nes_INY)
+        else if(nes_instructions[opcode].addr_mode == &nes_IZY)
         {
-            
+            uint8_t value = nes_cpu_read(addr, true);
+            sprintf(disstr, "$%s %X %s", nes_instructions[opcode].name, value , "Y {IZY}");
+            addr++;
         }
         else
         {
             //Something went wrong here
             console_writestr(x,y,"Uknown Opcode or Addressing Mode!");
-            free(disstr);
         }
+
+        console_writestr( x, y, disstr);
         
         y += 12;
     }
-    
+    free(disstr);
 }
 

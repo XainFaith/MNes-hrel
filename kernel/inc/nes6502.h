@@ -76,8 +76,9 @@ uint8_t nes_STX();	uint8_t nes_STY();	uint8_t nes_TAX();	uint8_t nes_TAY();
 uint8_t nes_TSX();	uint8_t nes_TXA();	uint8_t nes_TXS();	uint8_t nes_TYA();
 
 
-
-
+void nes_dissasemble_display();
+void nes_reset();
+void nes_clock();
 
 #endif
 

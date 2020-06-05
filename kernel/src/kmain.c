@@ -12,6 +12,8 @@
 #include "bmp.h"
 
 #include "nescart.h"
+#include "nes6502.h"
+#include "nesbus.h"
 
 
 
@@ -38,7 +40,17 @@ void kmain()
 		}
 	}
 
-    //int result = nes_load_cart("/roms/nestest.nes");
+	init_nes_bus();
+	init_nes_6502();
+    int result = nes_load_cart("/roms/nestest.nes");
+    nes_reset();
+    nes_dissasemble_display();
+    
+    for(int i =0; i < 10; i++)
+    {
+        nes_clock();
+        nes_dissasemble_display();
+    }
 }
 
 
