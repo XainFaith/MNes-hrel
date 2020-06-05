@@ -1,6 +1,7 @@
-#include <stdint-gcc.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <dirent.h>
+#include <sys/stat.h>
 #include "pmm.h"
 #include "pl110.h"
 #include "pl181.h"
@@ -8,6 +9,9 @@
 #include "vfs.h"
 #include "block_device.h"
 #include "fat32.h"
+#include "bmp.h"
+
+#include "nescart.h"
 
 
 
@@ -22,7 +26,7 @@ void kmain()
 	
 	//Initalize mmci
 	init_pl181(0x10005000);
-	struct BLOCK_DEVICE * sd = get_block_device();
+	struct BLOCK_DEVICE * sd = (struct BLOCK_DEVICE*) pl181_get_block_device();
 	fs_driver * fat_driver =  init_fatfs(sd);
 	if(fat_driver != NULL)
 	{
@@ -33,16 +37,15 @@ void kmain()
 			return;
 		}
 	}
-	
-	DIR * dir = opendir("/testdir/");
-	
-	dirent * entry = readdir(dir);
-	while(entry != NULL)
-	{
-		printf("Entry: %s \n", entry->d_name);
-		entry = readdir(dir);
-	}
-	
-	closedir(dir);
 
+    //int result = nes_load_cart("/roms/nestest.nes");
 }
+
+
+
+
+
+
+
+
+

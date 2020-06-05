@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdint-gcc.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -57,6 +58,11 @@ int init_pl181(uint32_t baseaddr)
     mmci_registers->power = 0x86;
 }
 
+void mmci_clear_flags()
+{
+    mmci_registers->clear = 0x5FF;
+}
+
 void mmci_send_cmd(volatile uint32_t arg, uint32_t param)
 {
 	mmci_clear_flags();
@@ -64,7 +70,7 @@ void mmci_send_cmd(volatile uint32_t arg, uint32_t param)
 	mmci_registers->arg = param;
 	
     //Wait until the cmd line is not active
-    while((mmci_registers->status & (1 << 11) != (1 << 11)))
+    while((mmci_registers->status & ((1 << 11) != (1 << 11))))
     {}
 
     mmci_registers->cmd = arg;
@@ -190,12 +196,7 @@ void mmci_clear_resp_registers()
     mmci_registers->response[3] = 0;
 }
 
-void mmci_clear_flags()
-{
-    mmci_registers->clear = 0x5FF;
-}
-
-block_device * get_block_device()
+struct BLOCK_DEVICE * pl181_get_block_device()
 {
 
     //Send cmd 0 to set all cards into idle state

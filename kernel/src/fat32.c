@@ -1,7 +1,9 @@
-#include <stdint-gcc.h>
+#include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "fat32.h"
 #include "dirent.h"
 
@@ -124,6 +126,24 @@ uint32_t fat_clustertolba(fat_fs * fs, uint32_t clusternum)
 	return fs->firstdatalba + (fs->bpb->sectorsPerCluster * (clusternum -2));
 }
 
+char * fat_getfilename(char * pathstr)
+{
+	char * ret = strtok(pathstr, "/");
+	while(true)
+	{
+		char * n = strtok(NULL, "/");
+		if(n == NULL)
+		{
+			return ret;
+		}
+		else
+		{
+			ret = n;
+		}
+	}
+	return ret;
+}
+
 fs_driver * init_fatfs(block_device * device)
 {
 	uint8_t * readbuffer = (uint8_t*)malloc(sizeof(uint8_t) * 512);
@@ -169,12 +189,14 @@ fs_driver * init_fatfs(block_device * device)
 	
 	fs_driver * fat_driver = (fs_driver*)malloc(sizeof(fs_driver));
 	fat_driver->native_fs = fatfs;
-	fat_driver->fsopendir = &fat_opendir;
-	fat_driver->fsreaddir = &fat_readdir;
-	fat_driver->fsopenfile = &fat_fopen;
-	fat_driver->fsreadfile = &fat_fread;
-	fat_driver->fsclosedir = &fat_closedir;
-	fat_driver->fsrewinddir = &fat_rewinddir;
+	fat_driver->fsopendir = (fs_open_dir)&fat_opendir;
+	fat_driver->fsreaddir = (fs_read_dir)&fat_readdir;
+	fat_driver->fsopenfile = (fs_open_file) &fat_fopen;
+	fat_driver->fsreadfile = (fs_read_file) &fat_fread;
+	fat_driver->fsclosedir = (fs_close_dir) &fat_closedir;
+	fat_driver->fsrewinddir = (fs_rewind_dir) &fat_rewinddir;
+    fat_driver->fsclosefile = (fs_close_file) &fat_fclose;
+    fat_driver->fsfstat = (fs_fstat) &fat_fstat;
 		
 	return fat_driver;
 }
@@ -246,7 +268,7 @@ DIR * fat_opendir(const char * path, fat_fs * fs)
 		
 		int nextoffset = fat_getdirent(readptr, dir);
 			
-		if(dir != NULL)
+		if(dir != NULL && dir->d_type == DT_DIR)
 		{
 			if(strcmp(dir->d_name, subdir) == 0x0) //We found the directory we were looking for
 			{
@@ -313,14 +335,135 @@ int fat_closedir(fat_dir * dir, fat_fs * fs)
 	return 0;
 }
 
-vfs_open_file * fat_fopen(char * path, fat_fs * fs)
+FILE * fat_fopen(char * path, fat_fs * fs)
 {
+	if(path == NULL || fs == NULL)
+	{
+		return NULL;
+	}
+	
+	char * copy = (char*)malloc(strlen(path) + 1);
+	strcpy(copy, path);
+	char * fname = fat_getfilename(copy);
+	char * pathto  = NULL;
+	if(fname == NULL) //Must be trying to open a file in the root directory
+	{
+		return NULL;
+	}
+	
+	if(strcmp(path, fname) == 0x0) //opening file in root directory
+	{
+		pathto = "/";
+	}
+	else
+	{
+		int len = strlen(path) - strlen(fname);
+		pathto  = (char*)malloc(len) ;
+		memcpy(pathto, path, len);
+		pathto[len] = '\0';
+		if(pathto == NULL)
+		{
+			
+		}
+	}
+	
+	fat_dir * fdir = (fat_dir*)fat_opendir(pathto, fs);
+	
+	if(fdir != NULL)
+	{
+			dirent * rdirent = (dirent*)malloc(sizeof(dirent));
+			rdirent = fat_readdir(fdir);
+			
+			while(rdirent != NULL)
+			{
+				//Is this the file we are looking for
+				if(strcmp(rdirent->d_name, fname) == 0x0 && rdirent->d_type == DT_REG) 
+				{
+					fat_dirent * filedirent = (fat_dirent*)fdir->readptr;
+					filedirent--;
+					
+					fat_file * fatfile = (fat_file*)malloc(sizeof(fat_file));
+					fatfile->filesize = filedirent->sizeInBytes;
+
+					uint32_t filecluster = (filedirent->addrHighbits << 16) | (filedirent->addrLowBits);
+					uint32_t fileclustercount = fat_getclustercount(filecluster, fs);
+					uint32_t buffersize = 0;
+					fatfile->data = fat_getdata(filecluster,&buffersize,fs);
+					
+					//Check for error
+					if(buffersize == -1)
+					{
+						free(fatfile->data);
+						free(fatfile);
+						free(rdirent);
+						free(copy);
+						if(pathto != NULL && strcmp(pathto,"/") != 0x0 )
+						{
+							free(pathto);
+						}
+						return NULL;
+					}
+					
+					fatfile->dataptr = fatfile->data;
+					fatfile->buffersize = buffersize;
+					fatfile->basecluster = filecluster;
+					free(rdirent);
+					free(copy);
+					if(pathto != NULL && strcmp(pathto,"/") != 0x0 )
+					{
+						free(pathto);
+					}
+					
+					return fatfile;
+				}
+				
+				rdirent = fat_readdir(fdir);
+			}
+	}
+	
+	free(copy);
+	if(pathto != NULL && strcmp(pathto,"/") != 0x0 )
+	{
+		free(pathto);
+	}
+	
 	return NULL;	
 }
 
-size_t fat_fread(unsigned char *ptr, size_t size, vfs_open_file * file, fat_fs * fs)
+int fat_fclose(fat_file * stream, fat_fs * fs)
 {
-	return -1;	
+    if(stream != NULL && stream->data != NULL)
+    {
+        free(stream->data);
+        free(stream);
+        return 0;
+    }
+    return -1;
+}
+
+size_t fat_fread(unsigned char *ptr, size_t size, fat_file * file, fat_fs * fs)
+{
+	if(file == NULL || fs == NULL || ptr == NULL)
+	{
+		return -1;
+	}
+	
+	uint32_t offsetintofile = ((uint32_t)file->dataptr) - ((uint32_t)file->data);
+	uint32_t bytestoread = size;
+	if((offsetintofile + size) >  file->buffersize)
+	{
+		bytestoread = file->buffersize - offsetintofile;
+	}
+	
+	if(bytestoread == 0)
+	{
+			return -1;
+	}
+	
+	memcpy(ptr, file->dataptr, bytestoread);
+	file->dataptr += bytestoread;
+	
+	return bytestoread;
 }
 
 /*
@@ -465,3 +608,29 @@ int fat_getdirent(char * buffer,  dirent * out)
 	out = NULL;
 	return -1;
 }
+
+int fat_fstat(fat_file * file, struct stat * pstat)
+{
+    if(file != NULL)
+    {
+        pstat->st_size = file->filesize;
+        return 0;
+    }
+    
+    return -1;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

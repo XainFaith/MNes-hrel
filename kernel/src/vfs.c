@@ -1,4 +1,6 @@
+#include <stdlib.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 #include "filesystem.h"
@@ -166,7 +168,7 @@ int closedir(DIR * dir)
 {
 	if(dir == NULL)
 	{
-		return NULL;
+		return -1;
 	}
 
 	for(int i =0; i < 16; i++)
@@ -175,18 +177,23 @@ int closedir(DIR * dir)
 		{
 			int retval = vfs_open_dirs[i].driver->fsclosedir(dir, vfs_open_dirs[i].driver->native_fs);
 			//TODO check return value to be sure its sane before removing the open directory from the list of open directorys
+            if(retval)
+            {
+            }
 			vfs_open_dirs[i].dir = NULL;
 			vfs_open_dirs[i].driver = NULL;
+            return 0;
 		}
 	}
 
+	return -1;
 }
 
 void rewinddir(DIR * dir)
 {
 	if(dir == NULL)
 	{
-		return NULL;
+		return;
 	}
 	
 	for(int i =0; i < 16; i++)
@@ -199,13 +206,29 @@ void rewinddir(DIR * dir)
 }
 
 
-FILE * fopen(const char * path, const char * mode)
+int vfsfopen(const char * path, const char * mode)
 {
 	if(strcmp(mode,"r") != 0x0) {return NULL; } //Only read is going to be supported for now
 	
 	if(path == NULL || vfs_mfs == NULL)
 	{
-		return NULL;
+		return -1;
+	}
+	
+	int vfsofindex =-1;
+	for(int i =3; i < 64; i++)
+	{
+		if(vfs_open_files[i].meta == NULL && vfs_open_files[i].driver == NULL)
+		{
+			vfsofindex = i;
+			break;
+		}
+	}
+	
+	if(vfsofindex == -1)
+	{
+		//TODO set errno to some value about to many files opened already
+		return -1;
 	}
 
 	vfs_mount_node * itr = vfs_mfs;
@@ -224,23 +247,67 @@ FILE * fopen(const char * path, const char * mode)
 			//if cmp == 0x0 root directory of the mount point is requested to be opened
 			if(cmpval == 0x0)  //Cannot open a directory as a file
 			{
-				return NULL;
+				return -1;
 			}
 			else
 			{
 				char * subpath = path + strlen(itr->mountpath) ;
-
+				FILE * filemeta = itr->vfs_driver->fsopenfile(subpath, itr->vfs_driver->native_fs);
+				if(filemeta != NULL)
+				{
+					vfs_open_files[vfsofindex].meta = filemeta;
+					vfs_open_files[vfsofindex].driver = itr->vfs_driver;
+					return vfsofindex;
+				}
 			}
 		}
 		itr = itr->next;
 	}
 	
-	return NULL; 
+	return -1; 
 }
 
-size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
+int vfsfclose(FILE * stream)
 {
-return 0;
+    int fd = (int)stream;
+    if(vfs_open_files[fd].meta != NULL && vfs_open_files[fd].driver != NULL)
+	{
+        FILE * meta = (FILE*)vfs_open_files[fd].meta;        
+        int ret =  vfs_open_files[fd].driver->fsclosefile(meta, vfs_open_files[fd].driver->native_fs);
+        if(ret != 0x0)
+        {
+            
+        }
+        
+        vfs_open_files[fd].driver = NULL;
+        vfs_open_files[fd].meta = NULL;
+        return 0;
+    }
+    
+    //TODO Set errno to sensible value
+    return -1;
 }
 
+size_t vfsfread(void *ptr, size_t size, size_t nmemb, FILE * stream)
+{
+    int fd = (int)stream;
+	if(vfs_open_files[fd].meta != NULL && vfs_open_files[fd].driver != NULL)
+	{
+		return vfs_open_files[fd].driver->fsreadfile(ptr, size * nmemb, vfs_open_files[fd].meta, vfs_open_files[fd].driver->native_fs); 
+	}
+	
+	//TODO Set errno to sensible value
+	return -1;	
+}
 
+int vfsfstat(FILE* stream, struct stat * pstat)
+{
+    int fd = (int)stream;
+    
+	if(vfs_open_files[fd].meta != NULL && vfs_open_files[fd].driver != NULL)
+	{
+        return vfs_open_files[fd].driver->fsfstat(vfs_open_files[fd].meta,vfs_open_files[fd].driver->native_fs, pstat);
+    }
+    
+    return -1;
+}

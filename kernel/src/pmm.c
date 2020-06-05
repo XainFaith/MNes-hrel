@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include <stdint-gcc.h>
+#include <stdint.h>
 
 #define MB 1024 * 1024
 
