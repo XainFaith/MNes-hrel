@@ -1,7 +1,8 @@
 #ifndef _FAT_32_H
 #define _FAT_32_H
 
-#include <stdint-gcc.h>
+#include <stdint.h>
+#include <sys/stat.h>
 #include "malloc.h"
 #include "block_device.h"
 #include "mbr.h"
@@ -91,6 +92,15 @@ typedef struct fat_dir{
 	uint32_t size;
 } fat_dir;
 
+typedef struct fat_file
+{
+	char * data;
+	char * dataptr;
+	uint32_t buffersize;
+	uint32_t filesize;
+	uint32_t basecluster;
+} fat_file;
+
 fs_driver * init_fatfs(block_device * device);
 uint32_t fat_clustertolba(fat_fs * fs, uint32_t clusternum);
 int fat_getclustercount(uint32_t clusterroot, fat_fs * fs);
@@ -103,10 +113,10 @@ void fat_rewinddir(fat_dir * dir);
 dirent * fat_readdir(fat_dir * dir);
 int fat_closedir(fat_dir * dir, fat_fs * fs);
 
-vfs_open_file * fat_fopen(char * path, fat_fs * fs);
-size_t fat_fread(unsigned char *ptr, size_t size, vfs_open_file * file, fat_fs * fs);
-
-
+FILE * fat_fopen(char * path, fat_fs * fs);
+size_t fat_fread(unsigned char *ptr, size_t size, fat_file * file, fat_fs * fs);
+int fat_fclose(fat_file * stream, fat_fs * fs);
+int fat_fstat(fat_file * file, struct stat * pstat);
 
 
 #endif

@@ -1,7 +1,7 @@
 #ifndef _PL110_H
 #define _PL110_H
 
-#include <stdint-gcc.h>
+#include <stdint.h>
 
 enum ColorMode
 {

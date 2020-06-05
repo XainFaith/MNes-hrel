@@ -1,7 +1,7 @@
 #ifndef _MBR_H
 #define _MBR_H
 
-#include <stdint-gcc.h>
+#include <stdint.h>
 
 typedef struct
 {

@@ -1,7 +1,7 @@
 #ifndef _BLOCK_DEVICE_H
 #define _BLOCK_DEVICE_H
 
-#include <stdint-gcc.h>
+#include <stdint.h>
 #include <stdbool.h>
 
 typedef int (*block_read)(void * buffer, uint32_t addr);

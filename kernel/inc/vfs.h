@@ -1,17 +1,20 @@
 #ifndef _VFS_H
 #define _VFS_H
 
-#include <stdint-gcc.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <dirent.h>
+#include <sys/stat.h>
 
 
-typedef  DIR *(*fs_open_dir)(char * path, void * driver); 
-typedef  dirent * (*fs_read_dir)(DIR *, void * driver);
+typedef DIR *(*fs_open_dir)(char * path, void * driver); 
+typedef dirent * (*fs_read_dir)(DIR *, void * driver);
 typedef void (*fs_rewind_dir)(DIR *, void * driver);
 typedef int (*fs_close_dir)(DIR *, void * driver);
 typedef FILE * (*fs_open_file)(char * path, void * driver);
 typedef int (*fs_read_file)(void *ptr, size_t size, void * file, void * driver);
+typedef int (*fs_close_file)(void * file, void * driver);
+typedef int (*fs_fstat)(void * file, void * driver, struct stat*);
 
 typedef struct fs_driver
 {
@@ -22,6 +25,8 @@ typedef struct fs_driver
 	fs_read_dir fsreaddir;
 	fs_open_file fsopenfile;
 	fs_read_file fsreadfile;
+    fs_close_file fsclosefile;
+    fs_fstat fsfstat;
 } fs_driver;
 
 typedef struct vfs_open_dir
@@ -32,11 +37,7 @@ typedef struct vfs_open_dir
 
 typedef struct vfs_open_file
 {
-	void * data;
 	void * meta;
-	uint32_t pos;
-	uint32_t size;
-	char * mode;
 	fs_driver * driver;
 } vfs_open_file;
 
@@ -57,6 +58,10 @@ DIR * opendir(char * path);
 int closedir(DIR * dir);
 void rewinddir(DIR * dir);
 dirent* readdir(DIR* dir);
-FILE * fopen(const char *, const char *);
+int vfsfopen(const char *, const char *);
+int vfsfclose(FILE * stream);
+size_t vfsfread(void *ptr, size_t size, size_t nmemb, FILE *stream);
+
+int vfsfstat(FILE* stream, struct stat * pstat);
 
 #endif

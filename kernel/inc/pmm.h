@@ -1,7 +1,7 @@
 #ifndef _PMM_H
 #define _PMM_H
 
-#include <stdint-gcc.h>
+#include <stdint.h>
 
 //Initalizes Physical Memory Manager with 
 int32_t init_pmm();

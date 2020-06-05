@@ -1,7 +1,7 @@
 #ifndef _FILESYSTEM_H
 #define _FILESYSTEM_H
 
-#include <stdint-gcc.h>
+#include <stdint.h>
 #include "block_device.h"
 
 typedef char* (*FS_READ_DIR)(char *);
